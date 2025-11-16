@@ -27,8 +27,8 @@ export default function Menubar() {
         {isConnected && <>
             <div onClick={() => setBalanceHidden(!balanceHidden)}
                 className="cursor-pointer h-10 flex items-center justify-center px-2 rounded-none font-mono text-sm">${balanceHidden ? "XX.XX" : usdcBalance}</div>
-            <Link href="/upload">
-                <Button variant="link" className=" h-10 pl-1 flex items-center justify-center rounded-none">SELL AN ITEM</Button>
+            <Link href="/dashboard">
+                <Button variant="link" className="h-10 pl-1 flex items-center justify-center rounded-none">DASHBOARD</Button>
             </Link>
         </>
         }

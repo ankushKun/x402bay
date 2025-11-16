@@ -1,8 +1,19 @@
 import { useRouter } from 'next/router';
 import { FileItem } from '@/lib/models';
+import { useState } from 'react';
+import { useAccount } from 'wagmi';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { Edit } from 'lucide-react';
 
-export default function ListingPreview({ listing }: { listing: FileItem }) {
+export default function ListingPreview({ listing, showEdit }: { listing: FileItem, showEdit?: boolean }) {
     const router = useRouter();
+    const { address, isConnected } = useAccount();
+    const [likesCount, setLikesCount] = useState(listing.likes?.length || 0);
+    const [isLiked, setIsLiked] = useState(
+        address ? listing.likes?.some((addr) => addr.toLowerCase() === address.toLowerCase()) || false : false
+    );
+    const [isLiking, setIsLiking] = useState(false);
 
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleDateString('en-US', {
@@ -64,31 +75,65 @@ export default function ListingPreview({ listing }: { listing: FileItem }) {
 
     const { text: descriptionText, isTruncated } = getDescriptionPreview(listing.description);
 
+    const handleLikeClick = async (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!isConnected || !address) {
+            alert('Please connect your wallet to like items');
+            return;
+        }
+
+        setIsLiking(true);
+        try {
+            const method = isLiked ? 'DELETE' : 'POST';
+            const response = await fetch(`/api/items/${listing.id}/like`, {
+                method,
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setIsLiked(!isLiked);
+                setLikesCount(data.likesCount);
+            } else {
+                const error = await response.json();
+                alert(error.error || 'Failed to update like');
+            }
+        } catch (error) {
+            console.error('Error updating like:', error);
+            alert('Failed to update like');
+        } finally {
+            setIsLiking(false);
+        }
+    };
+
     return (
         <div
-            className="bg-white/5 border border-white/10 mb-3 cursor-pointer hover:border-white/30 transition-colors"
+            className="bg-white/5 border border-white/10 mb-3 hover:border-white/30 transition-colors"
         >
             {/* Header bar - black and white */}
-            <div className="border-b border-white/10 bg-black/80 px-4 py-2">
-                <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-medium text-white/95">ITEM #{listing.id.slice(0, 8).toUpperCase()}</span>
-                    <span className="text-xs text-white/50">{formatDate(listing.uploadedAt)}</span>
-                </div>
+            <div className="border-b border-white/10 bg-black/80 px-2 py-2 flex w-full gap-2 items-center justify-center">
+                <Link href={`/listing/${listing.id}`} className='p-0 m-0 w-full'>
+                    <div className="flex items-center justify-between">
+                        <span className="font-mono text-xs font-medium text-white/95">ITEM #{listing.id.slice(0, 8).toUpperCase()}</span>
+                        <span className="text-xs text-white/50">{formatDate(listing.uploadedAt)}</span>
+                    </div>
+                </Link>
             </div>
 
             {/* Main content area */}
-            <div className="p-4">
-                <div className="flex gap-4">
+            <Link href={`/listing/${listing.id}`}>
+                <div className="flex gap-4 p-4">
                     {/* Left side - thumbnail image */}
                     <div className="shrink-0">
                         {listing.itemImages && listing.itemImages.length > 0 ? (
                             <img
                                 src={`/api/images/${listing.itemImages[0].filename}`}
                                 alt={listing.name || listing.title || 'Item thumbnail'}
-                                className="w-32 h-32 border border-white/10 bg-black/30 object-cover"
+                                className="w-32 h-32   object-cover"
                             />
                         ) : (
-                            <div className="w-32 h-32 border border-white/10 bg-black/30 flex items-center justify-center">
+                            <div className="w-32 h-32  flex items-center justify-center">
                                 <div className="text-center">
                                     <div className="text-4xl mb-1">📁</div>
                                     <div className="text-[10px] text-white/50 font-mono">{formatFileSize(listing.size)}</div>
@@ -118,19 +163,32 @@ export default function ListingPreview({ listing }: { listing: FileItem }) {
                         </div>
                     </div>
                 </div>
-            </div>
+            </Link>
 
             {/* Footer */}
             <div className="bg-black/30 border-t border-white/10 px-4 py-2">
-                <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2 text-xs text-white/50">
-                        <span>Digital Download</span>
-                        <span>•</span>
-                        <span>Instant Delivery</span>
+                <div className="flex justify-evenly items-center gap-2">
+                    <div className="flex items-center gap-4">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 gap-1 hover:bg-white/10"
+                            onClick={handleLikeClick}
+                            disabled={isLiking}
+                        >
+                            <span className="text-base">{isLiked ? '❤️' : '🤍'}</span>
+                            <span className="text-xs text-white/70">{likesCount}</span>
+                        </Button>
                     </div>
-                    <span className="text-xs text-white/60 hover:text-white/90 font-medium cursor-pointer">
+                    <div className='grow' />
+                    {showEdit && <Link href={`/edit/${listing.id}`}>
+                        <div className='text-sm flex  items-center justify-center text-white/60 hover:text-white/90 gap-1 p-1 transition-all duration-200' >
+                            <Edit className='w-4 h-4' /> Edit
+                        </div>
+                    </Link>}
+                    <Link href={`/listing/${listing.id}`} className="text-xs text-white/60 hover:text-white/90 font-medium cursor-pointer">
                         View Details →
-                    </span>
+                    </Link>
                 </div>
             </div>
         </div>

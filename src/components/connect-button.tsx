@@ -27,7 +27,7 @@ export default function CustomConnectButton({ className }: { className?: string 
 
             return (
                 <div
-                    className={cn("flex", className)}
+                    className={cn("flex items-center justify-center", className)}
                     {...(!ready && {
                         'aria-hidden': true,
                         'style': {
@@ -40,7 +40,7 @@ export default function CustomConnectButton({ className }: { className?: string 
                     {(() => {
                         if (!connected) {
                             return (
-                                <Button className="rounded-none border-0 shadow-none text-white/90 hover:text-white hover:bg-white/20" onClick={openConnectModal} type="button">
+                                <Button className="rounded-none border-0 h-full shadow-none text-white/90 hover:text-white hover:bg-white/20" onClick={openConnectModal} type="button">
                                     Connect Wallet
                                 </Button>
                             );

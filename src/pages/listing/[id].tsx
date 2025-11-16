@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { GetServerSideProps } from 'next';
-import { useAccount, useWalletClient } from 'wagmi';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount, useWalletClient, useBalance } from 'wagmi';
+import { useSession } from 'next-auth/react';
+import CustomConnectButton from '@/components/connect-button';
 import Layout from '@/components/layout';
 import { FileItem } from '@/lib/models';
 import dynamic from 'next/dynamic';
@@ -26,7 +27,9 @@ interface ListingDetailsProps {
 export default function ListingDetails({ item }: ListingDetailsProps) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const { data: session } = useSession();
   const { data: walletClient } = useWalletClient();
+  const isAuthenticated = isConnected && session?.user;
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -37,6 +40,43 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
   const [pendingLink, setPendingLink] = useState('');
   const [paymentResponse, setPaymentResponse] = useState<any>(null);
   const [paymentConfirmOpen, setPaymentConfirmOpen] = useState(false);
+  const [likesCount, setLikesCount] = useState(item?.likes?.length || 0);
+  const [isLiked, setIsLiked] = useState(
+    address && item ? item.likes?.some((addr) => addr.toLowerCase() === address.toLowerCase()) || false : false
+  );
+  const [isLiking, setIsLiking] = useState(false);
+  const [hasPurchased, setHasPurchased] = useState(false);
+  const [checkingPurchase, setCheckingPurchase] = useState(false);
+
+  // Fetch user's token balance
+  const { data: balance, isLoading: isBalanceLoading } = useBalance({
+    address: address,
+    token: typeof item?.token === 'object' ? item.token.contractAddress as `0x${string}` : undefined,
+    chainId: typeof item?.token === 'object' ? Number(item.token.chainId) : undefined,
+  });
+
+  // Check if user has already purchased this item
+  useEffect(() => {
+    if (isAuthenticated && address && item) {
+      checkPurchaseHistory();
+    }
+  }, [isAuthenticated, address, item]);
+
+  const checkPurchaseHistory = async () => {
+    setCheckingPurchase(true);
+    try {
+      const response = await fetch('/api/user/purchases');
+      if (response.ok) {
+        const data = await response.json();
+        const purchased = data.items.some((purchase: any) => purchase.id === item?.id);
+        setHasPurchased(purchased);
+      }
+    } catch (error) {
+      console.error('Error checking purchase history:', error);
+    } finally {
+      setCheckingPurchase(false);
+    }
+  };
 
   if (!item) {
     return (
@@ -82,6 +122,26 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
       return;
     }
 
+    // Check if balance is loaded
+    if (isBalanceLoading) {
+      setError('Loading balance information. Please try again.');
+      return;
+    }
+
+    // Check if user has sufficient balance
+    if (balance) {
+      const requiredAmount = Number(item.price);
+      const userBalance = Number(balance.formatted);
+
+      if (userBalance < requiredAmount) {
+        setError(`Insufficient balance. You need ${requiredAmount} ${balance.symbol} but only have ${userBalance.toFixed(4)} ${balance.symbol}`);
+        return;
+      }
+    } else {
+      setError('Unable to fetch balance. Please try again.');
+      return;
+    }
+
     // Show confirmation dialog
     setPaymentConfirmOpen(true);
   };
@@ -111,6 +171,9 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
         const paymentInfo = decodeXPaymentResponse(xPaymentResponse);
         setPaymentResponse(paymentInfo);
         console.log('Payment completed:', paymentInfo);
+      } else {
+        console.error('No payment was found in the response headers.');
+        return
       }
 
       // Download the file
@@ -136,6 +199,40 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
       } else {
         setError('Download failed. Please try again.');
       }
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleDirectDownload = async () => {
+    setDownloading(true);
+    setError('');
+    setSuccess(false);
+
+    try {
+      const response = await fetch(`/api/download/${item.id}`, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      // Download the file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.originalName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setSuccess(true);
+    } catch (err: any) {
+      console.error('Download error:', err);
+      setError(err.message || 'Download failed. Please try again.');
     } finally {
       setDownloading(false);
     }
@@ -196,6 +293,36 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
   const handleCancelLink = () => {
     setLinkAlertOpen(false);
     setPendingLink('');
+  };
+
+  const handleLike = async () => {
+    if (!isAuthenticated || !address) {
+      setError('Please connect and sign in with your wallet to like items');
+      return;
+    }
+
+    setIsLiking(true);
+    setError('');
+    try {
+      const method = isLiked ? 'DELETE' : 'POST';
+      const response = await fetch(`/api/items/${item.id}/like`, {
+        method,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setIsLiked(!isLiked);
+        setLikesCount(data.likesCount);
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || 'Failed to update like');
+      }
+    } catch (error) {
+      console.error('Error updating like:', error);
+      setError('Failed to update like');
+    } finally {
+      setIsLiking(false);
+    }
   };
 
   return (
@@ -364,6 +491,10 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
                   <span className="text-white/90 text-sm font-medium">{item.downloadCount || 0}</span>
                 </div>
                 <div className="flex py-2 border-b border-white/5">
+                  <span className="text-white/50 text-sm w-32">Likes:</span>
+                  <span className="text-white/90 text-sm font-medium">{likesCount}</span>
+                </div>
+                <div className="flex py-2 border-b border-white/5">
                   <span className="text-white/50 text-sm w-32">Listed:</span>
                   <span className="text-white/90 text-sm font-medium">{formatDate(item.uploadedAt)}</span>
                 </div>
@@ -390,21 +521,66 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
                 )}
               </div>
 
-              <div className="space-y-3 mb-6">
-                {!isConnected ? (
-                  <div className="text-center py-4 flex flex-col items-center justify-center">
-                    <p className="text-white/60 text-sm mb-4">Connect your wallet to purchase</p>
-                    <ConnectButton />
+              {/* Balance Display */}
+              {isAuthenticated && !hasPurchased && balance && (
+                <div className="mb-4 p-3 bg-white/5 border border-white/10">
+                  <div className="flex justify-between items-center">
+                    <span className="text-white/60 text-sm">Your Balance:</span>
+                    <span className={`text-sm font-medium ${Number(balance.formatted) >= Number(item.price)
+                      ? 'text-green-400'
+                      : 'text-red-400'
+                      }`}>
+                      {Number(balance.formatted).toFixed(4)} {balance.symbol}
+                    </span>
                   </div>
+                </div>
+              )}
+
+              {/* Already Purchased Message */}
+              {isAuthenticated && hasPurchased && (
+                <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-green-200 text-sm font-medium">You own this item</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-3 mb-6 flex items-center justify-center">
+                {!isAuthenticated ? (
+                  <CustomConnectButton className="w-full mx-auto" />
+                ) : hasPurchased ? (
+                  <Button
+                    onClick={handleDirectDownload}
+                    disabled={downloading}
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-white/10 disabled:cursor-not-allowed text-white font-bold p-6 transition-all text-lg"
+                  >
+                    {downloading ? 'Downloading...' : 'Download Again'}
+                  </Button>
                 ) : (
                   <Button
                     onClick={handleBuyNowClick}
-                    disabled={downloading}
+                    disabled={downloading || isBalanceLoading || checkingPurchase || (balance && Number(balance.formatted) < Number(item.price))}
                     className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-white/10 disabled:cursor-not-allowed text-white font-bold p-6 transition-all text-lg"
                   >
-                    {downloading ? 'Processing...' : 'Buy It Now'}
+                    {downloading ? 'Processing...' : isBalanceLoading ? 'Checking Balance...' : checkingPurchase ? 'Checking...' : 'Buy It Now'}
                   </Button>
                 )}
+              </div>
+
+              {/* Like Button */}
+              <div className="mb-6">
+                <Button
+                  onClick={handleLike}
+                  disabled={isLiking || !isAuthenticated}
+                  variant="ghost"
+                  className='w-full'
+                >
+                  <span className="text-lg mr-2">{isLiked ? '❤️' : '🤍'}</span>
+                  {isLiked ? 'Unlike' : 'Like'} ({likesCount})
+                </Button>
               </div>
 
               <div className="pt-4 border-t border-white/10 space-y-3">
@@ -495,7 +671,7 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
               <div className="mb-4 grow">
                 <p className="text-white/60 text-sm mb-2">Total Amount</p>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-green-400 font-bold text-4xl">{item.price}</span>
+                  <span className="text-green-400 font-bold text-4xl">${item.price}</span>
                   <span className="text-white/80 text-xl">
                     {typeof item.token === 'object' ? item.token.symbol : 'Unknown'}
                   </span>
@@ -611,7 +787,7 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Layout>
+    </Layout >
   );
 }
 

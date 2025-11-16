@@ -12,8 +12,14 @@ export default async function handler(
 
   try {
     const db = await getDb();
+    // Only show items that are listed (or default to true if field doesn't exist)
     const items = await db.collection<FileItem>(COLLECTIONS.ITEMS)
-      .find({})
+      .find({
+        $or: [
+          { isListed: { $exists: false } },
+          { isListed: true }
+        ]
+      })
       .sort({ uploadedAt: -1 })
       .toArray();
 

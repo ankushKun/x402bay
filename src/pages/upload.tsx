@@ -164,10 +164,10 @@ export default function Upload() {
         throw new Error('Upload failed');
       }
 
-      await response.json();
+      const data = await response.json();
 
-      // Redirect to the browse page after successful upload
-      router.push('/browse');
+      // Redirect to the listing page after successful upload
+      router.push(`/listing/${data.item.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {

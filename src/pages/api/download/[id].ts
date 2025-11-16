@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import fs from 'fs/promises';
 import path from 'path';
 import { getDb } from '@/lib/mongodb';
-import { FileItem, COLLECTIONS } from '@/lib/models';
+import { FileItem, Purchase, COLLECTIONS } from '@/lib/models';
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 
@@ -26,6 +26,49 @@ export default async function handler(
 
     if (!item) {
       return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Extract payment information from headers (set by x402 middleware)
+    const xPaymentResponse = req.headers['x-payment-response'] as string;
+    let buyerAddress: string | undefined;
+    let transactionHash: string | undefined;
+
+    if (xPaymentResponse) {
+      try {
+        // The x-payment-response header contains payment details
+        // It's typically a base64 encoded JSON string
+        const paymentData = JSON.parse(Buffer.from(xPaymentResponse, 'base64').toString());
+        buyerAddress = paymentData.payer || paymentData.from || paymentData.buyer || paymentData.buyerAddress;
+        transactionHash = paymentData.transaction || paymentData.transactionHash || paymentData.txHash || paymentData.hash;
+      } catch (e) {
+        console.error('Error parsing payment response:', e);
+        // Try parsing as plain JSON
+        try {
+          const paymentData = JSON.parse(xPaymentResponse);
+          buyerAddress = paymentData.payer || paymentData.from || paymentData.buyer || paymentData.buyerAddress;
+          transactionHash = paymentData.transaction || paymentData.transactionHash || paymentData.txHash || paymentData.hash;
+        } catch (e2) {
+          console.error('Error parsing payment response as JSON:', e2);
+        }
+      }
+    }
+
+    // Track the purchase if we have buyer information
+    if (buyerAddress) {
+      const purchase: Purchase = {
+        itemId: item.id,
+        buyerAddress: buyerAddress,
+        transactionHash: transactionHash,
+        amount: item.price,
+        purchasedAt: new Date().toISOString(),
+      };
+
+      try {
+        await db.collection<Purchase>(COLLECTIONS.PURCHASES).insertOne(purchase);
+      } catch (e) {
+        console.error('Error tracking purchase:', e);
+        // Don't fail the download if purchase tracking fails
+      }
     }
 
     // Increment download counter

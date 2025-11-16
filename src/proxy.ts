@@ -1,8 +1,9 @@
 import { paymentMiddleware, RouteConfig, RoutesConfig } from 'x402-next';
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/mongodb';
-import { FileItem, COLLECTIONS } from '@/lib/models';
+import { FileItem, Purchase, COLLECTIONS } from '@/lib/models';
 import CONSTANTS from '@/lib/constants';
+import { getToken } from 'next-auth/jwt';
 
 const { CHAINS } = CONSTANTS;
 
@@ -47,6 +48,35 @@ async function dynamicPaymentMiddleware(request: NextRequest): Promise<NextRespo
       { error: 'File not found' },
       { status: 404 }
     );
+  }
+
+  // Check if user is authenticated and has already purchased this item
+  try {
+    const token = await getToken({
+      req: request as any,
+      secret: process.env.NEXTAUTH_SECRET
+    });
+
+    if (token && token.sub) {
+      const userAddress = token.sub;
+      const db = await getDb();
+
+      // Check if user has purchased this item before
+      const existingPurchase = await db.collection<Purchase>(COLLECTIONS.PURCHASES)
+        .findOne({
+          itemId: fileId,
+          buyerAddress: { $regex: new RegExp(`^${userAddress}$`, 'i') }
+        });
+
+      if (existingPurchase) {
+        // User has already purchased - bypass payment middleware
+        console.log(`User ${userAddress} has already purchased item ${fileId}, bypassing payment`);
+        return NextResponse.next();
+      }
+    }
+  } catch (error) {
+    console.error('Error checking purchase history:', error);
+    // Continue to payment middleware if check fails
   }
 
   // Validate required token information

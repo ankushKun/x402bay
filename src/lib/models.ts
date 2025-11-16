@@ -25,6 +25,8 @@ export interface FileItem {
   uploadedAt: string;
   uploaderAddress: string;
   downloadCount?: number; // Track number of downloads
+  likes?: string[]; // Array of wallet addresses that liked this item
+  isListed?: boolean; // Whether the item is visible to public (default: true)
 }
 
 export interface ItemImage {
@@ -34,6 +36,16 @@ export interface ItemImage {
   isThumbnail: boolean;
 }
 
+export interface Purchase {
+  _id?: ObjectId;
+  itemId: string;
+  buyerAddress: string;
+  transactionHash?: string;
+  amount: string;
+  purchasedAt: string;
+}
+
 export const COLLECTIONS = {
   ITEMS: 'items',
+  PURCHASES: 'purchases',
 } as const;

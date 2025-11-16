@@ -2,12 +2,12 @@ import { base, baseSepolia } from "viem/chains";
 
 const CHAINS = {
     [`${baseSepolia.id}`]: baseSepolia,
-    [`${base.id}`]: base,
+    // [`${base.id}`]: base,
 }
 
 const CHAIN_LOGOS: Record<string, string> = {
     [baseSepolia.id]: "/chains/base.svg",
-    [base.id]: "/chains/base.svg",
+    // [base.id]: "/chains/base.svg",
 }
 
 interface TokenData {
@@ -28,15 +28,15 @@ const TOKENS: Record<string, Record<string, TokenData>> = {
             logo: "/tokens/usdc.svg",
         }
     },
-    [`${base.id}`]: {
-        USDC: {
-            symbol: "USDC",
-            name: "USD Coin",
-            address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-            decimals: 6,
-            logo: "/tokens/usdc.svg",
-        }
-    },
+    // [`${base.id}`]: {
+    //     USDC: {
+    //         symbol: "USDC",
+    //         name: "USD Coin",
+    //         address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    //         decimals: 6,
+    //         logo: "/tokens/usdc.svg",
+    //     }
+    // },
 }
 
 const CATEGORIES = {
