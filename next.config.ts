@@ -3,7 +3,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   reactStrictMode: false,
-  transpilePackages: ['@rainbow-me/rainbowkit'],
+  transpilePackages: [
+    '@rainbow-me/rainbowkit',
+    '@vanilla-extract/css',
+    '@vanilla-extract/dynamic',
+    '@vanilla-extract/sprinkles',
+  ],
   serverExternalPackages: [
     'pino',
     'pino-pretty',
