@@ -485,139 +485,80 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className="space-y-3 py-4">
-            {/* Price Card - Prominent */}
-            <div className="bg-linear-to-br from-green-600/20 to-emerald-600/20 border-2 border-green-500/50 p-6">
-              <div className="flex items-center gap-4">
-                <div className="bg-green-500/20 p-4">
-                  <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-white/60 text-sm mb-1">Total Amount</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-white font-bold text-4xl">{item.price}</span>
-                    <span className="text-white/80 text-xl">
-                      {typeof item.token === 'object' ? item.token.symbol : 'Unknown'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Visual Tag Grid */}
-            <div className="grid grid-cols-2 gap-3">
-              {/* Blockchain Network */}
-              <Link
-                href={typeof item.token === 'object' && item.token.chainId ? (CHAINS[item.token.chainId] as Chain)?.blockExplorers?.default.url || '#' : '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-white/5 border border-white/10 p-4 hover:bg-white/10 transition-colors cursor-pointer block"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="bg-purple-500/20 p-2">
-                    {typeof item.token === 'object' && item.token.chainId && CHAIN_LOGOS[item.token.chainId] ? (
-                      <img src={CHAIN_LOGOS[item.token.chainId]} alt="Chain logo" className="w-5 h-5" />
-                    ) : (
-                      <svg className="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                      </svg>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white/50 text-xs">Network</p>
-                    <p className="text-white font-semibold text-sm truncate">
-                      {typeof item.token === 'object' && item.token.chainId
-                        ? (CHAINS[item.token.chainId] as Chain)?.name || 'Unknown'
-                        : 'Unknown'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-white/40 text-xs">ID:</span>
-                  <span className="text-white/70 font-mono text-xs">
-                    {typeof item.token === 'object' ? item.token.chainId : 'N/A'}
+          <div className="space-y-4 py-4">
+            <div className='flex'>
+              {/* Total Amount */}
+              <div className="mb-4 grow">
+                <p className="text-white/60 text-sm mb-2">Total Amount</p>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-green-400 font-bold text-4xl">{item.price}</span>
+                  <span className="text-white/80 text-xl">
+                    {typeof item.token === 'object' ? item.token.symbol : 'Unknown'}
                   </span>
                 </div>
-              </Link>
+              </div>
 
-              {/* Token Info */}
-              <Link
-                href={typeof item.token === 'object' && item.token.chainId && item.token.contractAddress ? `${(CHAINS[item.token.chainId] as Chain)?.blockExplorers?.default.url}/token/${item.token.contractAddress}` : '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-white/5 border border-white/10 p-4 hover:bg-white/10 transition-colors cursor-pointer block"
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="bg-green-500/20 p-2">
-                    {typeof item.token === 'object' && item.token.symbol && TOKENS[item.token.chainId] && TOKENS[item.token.chainId][item.token.symbol].logo ? (
-                      <img src={TOKENS[item.token.chainId][item.token.symbol].logo} alt="Token logo" className="w-5 h-5" />
-                    ) : (
-                      <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white/50 text-xs">Token</p>
-                    <p className="text-white font-semibold text-sm truncate">
-                      {typeof item.token === 'object' ? item.token.name : 'Unknown'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-white/40 text-xs">Symbol:</span>
-                  <span className="text-white/70 font-mono text-xs">
-                    {typeof item.token === 'object' ? item.token.symbol : 'N/A'}
+              {/* Payment Info Tags */}
+              <div className="flex flex-col gap-2">
+                {/* Network Tag */}
+                <Link
+                  href={typeof item.token === 'object' && item.token.chainId ? (CHAINS[item.token.chainId] as Chain)?.blockExplorers?.default.url || '#' : '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
+                >
+                  {typeof item.token === 'object' && item.token.chainId && CHAIN_LOGOS[item.token.chainId] ? (
+                    <img src={CHAIN_LOGOS[item.token.chainId]} alt="Chain logo" className="w-4 h-4" />
+                  ) : null}
+                  <span>
+                    {typeof item.token === 'object' && item.token.chainId
+                      ? (CHAINS[item.token.chainId] as Chain)?.name || 'Unknown'
+                      : 'Unknown'}
                   </span>
-                </div>
-              </Link>
+                </Link>
+
+                {/* Token Tag */}
+                <Link
+                  href={typeof item.token === 'object' && item.token.chainId && item.token.contractAddress ? `${(CHAINS[item.token.chainId] as Chain)?.blockExplorers?.default.url}/token/${item.token.contractAddress}` : '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors"
+                >
+                  {typeof item.token === 'object' && item.token.symbol && TOKENS[item.token.chainId] && TOKENS[item.token.chainId][item.token.symbol].logo ? (
+                    <img src={TOKENS[item.token.chainId][item.token.symbol].logo} alt="Token logo" className="w-4 h-4" />
+                  ) : null}
+                  <span>{typeof item.token === 'object' ? item.token.symbol : 'Unknown'}</span>
+                </Link>
+              </div>
+
             </div>
 
-            {/* Contract Address - Full Width */}
-            <Link
-              href={typeof item.token === 'object' && item.token.chainId && item.token.contractAddress ? `${(CHAINS[item.token.chainId] as Chain)?.blockExplorers?.default.url}/token/${item.token.contractAddress}` : '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-white/5 border border-white/10 p-4 hover:bg-white/10 transition-colors block"
-            >
-              <div className="flex items-start gap-3">
-                <div className="bg-yellow-500/20 p-2 mt-1">
-                  <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white/50 text-xs mb-1">Token Contract Address</p>
-                  <p className="text-white/90 font-mono text-xs break-all bg-black/30 p-2 hover:text-white transition-colors">
-                    {typeof item.token === 'object' ? item.token.contractAddress : 'N/A'}
-                  </p>
-                </div>
+            {/* Address Tags */}
+            <div className="space-y-2 w-full">
+              <div>
+                <Link
+                  href={typeof item.token === 'object' && item.token.chainId && item.token.contractAddress ? `${(CHAINS[item.token.chainId] as Chain)?.blockExplorers?.default.url}/token/${item.token.contractAddress}` : '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center w-full gap-2 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors font-mono break-all"
+                >
+                  <span className="text-white/60 text-xs pr-2">Token</span>
+                  {typeof item.token === 'object' ? item.token.contractAddress : 'N/A'}
+                </Link>
               </div>
-            </Link>
 
-            {/* Receiver Address - Full Width */}
-            <Link
-              href={typeof item.token === 'object' && item.token.chainId ? `${(CHAINS[item.token.chainId] as Chain)?.blockExplorers?.default.url}/address/${item.uploaderAddress}` : '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-white/5 border border-white/10 p-4 hover:bg-white/10 transition-colors block"
-            >
-              <div className="flex items-start gap-3">
-                <div className="bg-pink-500/20 p-2 mt-1">
-                  <svg className="w-5 h-5 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-white/50 text-xs mb-1">Payment Receiver (Seller)</p>
-                  <p className="text-white/90 font-mono text-xs break-all bg-black/30 p-2 hover:text-white transition-colors">
-                    {item.uploaderAddress}
-                  </p>
-                </div>
+              <div>
+                <Link
+                  href={typeof item.token === 'object' && item.token.chainId ? `${(CHAINS[item.token.chainId] as Chain)?.blockExplorers?.default.url}/address/${item.uploaderAddress}` : '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 w-full px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white text-sm transition-colors font-mono break-all"
+                >
+                  <span className="text-white/60 text-xs">Seller</span>
+                  {item.uploaderAddress}
+                </Link>
               </div>
-            </Link>
+            </div>
           </div>
 
           <AlertDialogFooter>
