@@ -95,7 +95,7 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
 
     try {
       // Create a payment-enabled fetch function with the wallet client
-      const paymentFetch = wrapFetchWithPayment(fetch, walletClient as any);
+      const paymentFetch = wrapFetchWithPayment(fetch, walletClient as any, BigInt(Number(item.price) * 10 ** item.token.decimals));
 
       // Use x402-fetch to make the request
       // It will automatically handle 402 responses and retry with payment
@@ -358,6 +358,10 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
                 <div className="flex py-2 border-b border-white/5">
                   <span className="text-white/50 text-sm w-32">Protocol:</span>
                   <span className="text-white/90 text-sm font-medium">x402</span>
+                </div>
+                <div className="flex py-2 border-b border-white/5">
+                  <span className="text-white/50 text-sm w-32">Downloads:</span>
+                  <span className="text-white/90 text-sm font-medium">{item.downloadCount || 0}</span>
                 </div>
                 <div className="flex py-2 border-b border-white/5">
                   <span className="text-white/50 text-sm w-32">Listed:</span>

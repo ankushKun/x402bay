@@ -149,6 +149,7 @@ export default async function handler(
       itemImages,
       uploadedAt: new Date().toISOString(),
       uploaderAddress,
+      downloadCount: 0, // Initialize download counter
     };
 
     // Save to MongoDB

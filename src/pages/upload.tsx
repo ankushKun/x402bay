@@ -10,6 +10,12 @@ const { TOKENS, CHAINS, CATEGORIES } = CONSTANTS;
 
 const MDEditor = dynamic(() => import('@uiw/react-md-editor'), { ssr: false });
 
+// Get the first available chain and token as default
+const getDefaultToken = () => {
+  const firstChainId = Object.keys(TOKENS)[0];
+  const firstTokenSymbol = Object.keys(TOKENS[firstChainId])[0];
+  return `${firstChainId}:${firstTokenSymbol}`;
+};
 
 export default function Upload() {
   const router = useRouter();
@@ -22,7 +28,7 @@ export default function Upload() {
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [price, setPrice] = useState('5');
-  const [token, setToken] = useState('USDC');
+  const [token, setToken] = useState(getDefaultToken());
   const [itemImages, setItemImages] = useState<File[]>([]);
   const [digitalFile, setDigitalFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);

@@ -28,6 +28,12 @@ export default async function handler(
       return res.status(404).json({ error: 'File not found' });
     }
 
+    // Increment download counter
+    await db.collection<FileItem>(COLLECTIONS.ITEMS).updateOne(
+      { id },
+      { $inc: { downloadCount: 1 } }
+    );
+
     // Serve the file directly
     const filePath = path.join(UPLOADS_DIR, item.filename);
 

@@ -24,7 +24,7 @@ const TOKENS: Record<string, Record<string, TokenData>> = {
             symbol: "USDC",
             name: "USD Coin",
             address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-            decimals: 18,
+            decimals: 6,
             logo: "/tokens/usdc.svg",
         }
     },
@@ -33,7 +33,7 @@ const TOKENS: Record<string, Record<string, TokenData>> = {
             symbol: "USDC",
             name: "USD Coin",
             address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
-            decimals: 10,
+            decimals: 6,
             logo: "/tokens/usdc.svg",
         }
     },

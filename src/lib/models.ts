@@ -24,6 +24,7 @@ export interface FileItem {
   itemImages: ItemImage[];
   uploadedAt: string;
   uploaderAddress: string;
+  downloadCount?: number; // Track number of downloads
 }
 
 export interface ItemImage {

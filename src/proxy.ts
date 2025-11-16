@@ -1,29 +1,30 @@
-import { paymentMiddleware } from 'x402-next';
+import { paymentMiddleware, RouteConfig, RoutesConfig } from 'x402-next';
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
+import { getDb } from '@/lib/mongodb';
+import { FileItem, COLLECTIONS } from '@/lib/models';
+import CONSTANTS from '@/lib/constants';
 
-interface FileItem {
-  id: string;
-  title: string;
-  description: string;
-  price: string;
-  filename: string;
-  originalName: string;
-  size: number;
-  uploadedAt: string;
-  uploaderAddress: string;
-}
+const { CHAINS } = CONSTANTS;
 
 async function getFileItem(id: string): Promise<FileItem | null> {
   try {
-    const DB_FILE = path.join(process.cwd(), 'data', 'items.json');
-    const data = await fs.readFile(DB_FILE, 'utf-8');
-    const items: FileItem[] = JSON.parse(data);
-    return items.find((item) => item.id === id) || null;
-  } catch {
+    const db = await getDb();
+    const item = await db.collection<FileItem>(COLLECTIONS.ITEMS).findOne({ id });
+    return item;
+  } catch (error) {
+    console.error('Error fetching item for payment middleware:', error);
     return null;
   }
+}
+
+// Helper function to get network name from chain ID
+function getNetworkName(chainId: string): string {
+  const chain = CHAINS[chainId];
+  if (!chain) return ''; // fallback
+
+  // Map chain names to x402 network names
+  const chainName = chain.name.toLowerCase().replace(/\s+/g, '-');
+  return chainName;
 }
 
 // Create a wrapper middleware that dynamically builds the routes config
@@ -32,37 +33,55 @@ async function dynamicPaymentMiddleware(request: NextRequest): Promise<NextRespo
   const matches = request.nextUrl.pathname.match(/\/api\/download\/([^/?]+)/);
   const fileId = matches?.[1];
 
-  // Default values if file not found
-  let payTo: `0x${string}` = "0xCf673b87aFBed6091617331cC895376209d3b923"; // Fallback address
-  let routesConfig: any = {
-    '/api/download/*': {
-      price: '$0.01',
-      network: 'base-sepolia',
-      config: {
-        description: 'Access to protected API endpoint'
-      }
-    }
-  };
-
-  if (fileId) {
-    const fileItem = await getFileItem(fileId);
-
-    if (fileItem) {
-      // Use the uploader's address as the payment recipient
-      payTo = fileItem.uploaderAddress as `0x${string}`;
-
-      // Create a dynamic route for this specific file
-      routesConfig = {
-        [`/api/download/${fileId}`]: {
-          price: `$${fileItem.price}`,
-          network: 'base-sepolia',
-          config: {
-            description: `Purchase: ${fileItem.title}`
-          },
-        }
-      };
-    }
+  if (!fileId) {
+    return NextResponse.json(
+      { error: 'File ID is required' },
+      { status: 400 }
+    );
   }
+
+  const fileItem = await getFileItem(fileId);
+
+  if (!fileItem) {
+    return NextResponse.json(
+      { error: 'File not found' },
+      { status: 404 }
+    );
+  }
+
+  // Validate required token information
+  if (!fileItem.token || !fileItem.token.chainId || !fileItem.token.contractAddress) {
+    return NextResponse.json(
+      { error: 'Invalid payment configuration for this item' },
+      { status: 500 }
+    );
+  }
+
+  // Use the uploader's address as the payment recipient
+  const payTo = fileItem.uploaderAddress as `0x${string}`;
+
+  // Get network name from chain ID
+  const network = getNetworkName(fileItem.token.chainId);
+  if (!network) {
+    return NextResponse.json(
+      { error: 'Unsupported network for this item' },
+      { status: 500 }
+    );
+  }
+
+  const tokenAddress = fileItem.token.contractAddress;
+
+  // Create the route config for this specific file
+  const routesConfig: RoutesConfig = {
+    [`/api/download/${fileId}`]: {
+      price: `$${fileItem.price}`,
+      network: network,
+      token: tokenAddress,
+      config: {
+        description: `Purchase: ${fileItem.name || fileItem.title || 'Digital Item'}`
+      },
+    } as RouteConfig
+  };
 
   // Create the middleware with the dynamic config and uploader's address
   const middleware = paymentMiddleware(

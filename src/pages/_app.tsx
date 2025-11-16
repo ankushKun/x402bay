@@ -12,6 +12,7 @@ const config = getDefaultConfig({
   appName: "x402bay",
   projectId: "deca5efd6ce631635e677fc6bb3d75ef", // Get this from https://cloud.walletconnect.com
   chains: [base, baseSepolia],
+  appDescription: "The decentralized marketplace for digital goods.",
   ssr: true,
 });
 
