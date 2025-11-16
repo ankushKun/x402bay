@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start"
   },
   "dependencies": {
@@ -39,6 +39,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@rainbow-me/rainbowkit": "^2.2.9",
     "@rainbow-me/rainbowkit-siwe-next-auth": "^0.5.0",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@tanstack/react-query": "^5.90.9",
     "@uiw/react-md-editor": "^4.0.8",
     "class-variance-authority": "^0.7.1",
