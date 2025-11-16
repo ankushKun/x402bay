@@ -16,6 +16,7 @@ import { wrapFetchWithPayment, createSigner, decodeXPaymentResponse } from "x402
 
 import CONSTANTS, { getCategoryLabel } from "@/lib/constants";
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 const { CATEGORIES, CHAINS, CHAIN_LOGOS, TOKENS } = CONSTANTS;
 
 const MDPreview = dynamic(() => import('@uiw/react-markdown-preview'), { ssr: false });
@@ -31,6 +32,7 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
   const { data: walletClient } = useWalletClient();
   const isAuthenticated = isConnected && session?.user;
   const [downloading, setDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -55,10 +57,11 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
     chainId: typeof item?.token === 'object' ? Number(item.token.chainId) : undefined,
   });
 
-  // Check if user has already purchased this item
+  // Check if user has already purchased this item and refresh like status
   useEffect(() => {
     if (isAuthenticated && address && item) {
       checkPurchaseHistory();
+      refreshItemData();
     }
   }, [isAuthenticated, address, item]);
 
@@ -75,6 +78,27 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
       console.error('Error checking purchase history:', error);
     } finally {
       setCheckingPurchase(false);
+    }
+  };
+
+  const refreshItemData = async () => {
+    try {
+      const response = await fetch(`/api/items/${item?.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        const updatedItem = data.item;
+
+        // Update likes count
+        setLikesCount(updatedItem.likes?.length || 0);
+
+        // Update isLiked status
+        if (address && updatedItem.likes) {
+          const liked = updatedItem.likes.some((addr: string) => addr.toLowerCase() === address.toLowerCase());
+          setIsLiked(liked);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing item data:', error);
     }
   };
 
@@ -149,6 +173,7 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
   const handleConfirmPayment = async () => {
     setPaymentConfirmOpen(false);
     setDownloading(true);
+    setDownloadProgress(0);
     setError('');
     setSuccess(false);
     setPaymentResponse(null);
@@ -159,6 +184,7 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
 
       // Use x402-fetch to make the request
       // It will automatically handle 402 responses and retry with payment
+      setDownloadProgress(5); // Initial progress
       const response = await paymentFetch(`/api/download/${item.id}`, {
         method: 'GET',
       });
@@ -171,14 +197,73 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
         const paymentInfo = decodeXPaymentResponse(xPaymentResponse);
         setPaymentResponse(paymentInfo);
         console.log('Payment completed:', paymentInfo);
+        setDownloadProgress(10); // Payment verified
       } else {
         console.error('No payment was found in the response headers.');
         return
       }
 
-      // Download the file
-      const blob = await response.blob();
+      // Get the total file size from headers
+      const contentLength = response.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+      console.log('File size:', total, 'bytes');
+
+      // Download the file with progress tracking
+      const reader = response.body?.getReader();
+      const chunks: Uint8Array[] = [];
+      let receivedLength = 0;
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          chunks.push(value);
+          receivedLength += value.length;
+
+          // Update progress based on actual downloaded bytes (10% to 95%)
+          if (total > 0) {
+            const downloadPercentage = 10 + (receivedLength / total) * 85;
+            setDownloadProgress(Math.round(downloadPercentage));
+            console.log(`Downloaded: ${receivedLength} / ${total} bytes (${Math.round(downloadPercentage)}%)`);
+          } else {
+            // Fallback if content-length is not available
+            setDownloadProgress(Math.min(10 + (receivedLength / 100000) * 85, 90));
+          }
+        }
+      }
+
+      // Combine chunks into a single Uint8Array
+      const allChunks = new Uint8Array(receivedLength);
+      let position = 0;
+      for (const chunk of chunks) {
+        allChunks.set(chunk, position);
+        position += chunk.length;
+      }
+
+      // Ensure minimum display time for smooth progress animation
+      const startTime = Date.now();
+      const minDisplayTime = 1000; // Minimum 1 second to show animation
+
+      setDownloadProgress(97); // Creating blob
+      console.log('Creating blob...');
+
+      // Create blob
+      const blob = new Blob([allChunks]);
       const url = window.URL.createObjectURL(blob);
+
+      setDownloadProgress(100);
+      console.log('Download complete!');
+
+      // Calculate remaining time to meet minimum display duration
+      const elapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, minDisplayTime - elapsed);
+
+      // Wait for remaining time before triggering download
+      await new Promise(resolve => setTimeout(resolve, remainingTime));
+
+      // Trigger download
       const a = document.createElement('a');
       a.href = url;
       a.download = item.originalName;
@@ -188,6 +273,27 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
       document.body.removeChild(a);
 
       setSuccess(true);
+
+      // Record the purchase on the backend
+      if (paymentResponse && paymentResponse.transactionHash) {
+        try {
+          await fetch(`/api/items/${item.id}/purchase`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              transactionHash: paymentResponse.transactionHash
+            }),
+          });
+          console.log('Purchase recorded successfully');
+          // Refresh purchase status
+          setHasPurchased(true);
+        } catch (recordError) {
+          console.error('Failed to record purchase:', recordError);
+          // Don't show error to user as download was successful
+        }
+      }
     } catch (err: any) {
       console.error('Download error:', err);
 
@@ -201,15 +307,18 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
       }
     } finally {
       setDownloading(false);
+      setTimeout(() => setDownloadProgress(0), 2000); // Reset after 2 seconds
     }
   };
 
   const handleDirectDownload = async () => {
     setDownloading(true);
+    setDownloadProgress(0);
     setError('');
     setSuccess(false);
 
     try {
+      setDownloadProgress(5); // Initial progress
       const response = await fetch(`/api/download/${item.id}`, {
         method: 'GET',
       });
@@ -218,9 +327,69 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
         throw new Error('Download failed');
       }
 
-      // Download the file
-      const blob = await response.blob();
+      setDownloadProgress(10); // After request
+
+      // Get the total file size from headers
+      const contentLength = response.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+      console.log('File size:', total, 'bytes');
+
+      // Download the file with progress tracking
+      const reader = response.body?.getReader();
+      const chunks: Uint8Array[] = [];
+      let receivedLength = 0;
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          chunks.push(value);
+          receivedLength += value.length;
+
+          // Update progress based on actual downloaded bytes (10% to 95%)
+          if (total > 0) {
+            const downloadPercentage = 10 + (receivedLength / total) * 85;
+            setDownloadProgress(Math.round(downloadPercentage));
+            console.log(`Downloaded: ${receivedLength} / ${total} bytes (${Math.round(downloadPercentage)}%)`);
+          } else {
+            // Fallback if content-length is not available
+            setDownloadProgress(Math.min(10 + (receivedLength / 100000) * 85, 90));
+          }
+        }
+      }
+
+      // Combine chunks into a single Uint8Array
+      const allChunks = new Uint8Array(receivedLength);
+      let position = 0;
+      for (const chunk of chunks) {
+        allChunks.set(chunk, position);
+        position += chunk.length;
+      }
+
+      // Ensure minimum display time for smooth progress animation
+      const startTime = Date.now();
+      const minDisplayTime = 1000; // Minimum 1 second to show animation
+
+      setDownloadProgress(97); // Creating blob
+      console.log('Creating blob...');
+
+      // Create blob
+      const blob = new Blob([allChunks]);
       const url = window.URL.createObjectURL(blob);
+
+      setDownloadProgress(100);
+      console.log('Download complete!');
+
+      // Calculate remaining time to meet minimum display duration
+      const elapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, minDisplayTime - elapsed);
+
+      // Wait for remaining time before triggering download
+      await new Promise(resolve => setTimeout(resolve, remainingTime));
+
+      // Trigger download
       const a = document.createElement('a');
       a.href = url;
       a.download = item.originalName;
@@ -235,6 +404,7 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
       setError(err.message || 'Download failed. Please try again.');
     } finally {
       setDownloading(false);
+      setTimeout(() => setDownloadProgress(0), 2000); // Reset after 2 seconds
     }
   };
 
@@ -548,7 +718,7 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
                 </div>
               )}
 
-              <div className="space-y-3 mb-6 flex items-center justify-center">
+              <div className="space-y-3 mb-6 flex flex-col items-center justify-center">
                 {!isAuthenticated ? (
                   <CustomConnectButton className="w-full mx-auto" />
                 ) : hasPurchased ? (
@@ -567,6 +737,21 @@ export default function ListingDetails({ item }: ListingDetailsProps) {
                   >
                     {downloading ? 'Processing...' : isBalanceLoading ? 'Checking Balance...' : checkingPurchase ? 'Checking...' : 'Buy It Now'}
                   </Button>
+                )}
+
+                {/* Download Progress Indicator */}
+                {downloading && downloadProgress > 0 && (
+                  <div className="w-full space-y-2">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-white/70">
+                        {downloadProgress < 10 ? 'Initializing...' :
+                          downloadProgress < 95 ? 'Downloading...' :
+                            downloadProgress < 100 ? 'Finalizing...' : 'Complete!'}
+                      </span>
+                      <span className="text-white/90 font-medium">{Math.round(downloadProgress)}%</span>
+                    </div>
+                    <Progress value={downloadProgress} className="h-2 bg-white/10" />
+                  </div>
                 )}
               </div>
 

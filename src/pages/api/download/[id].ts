@@ -25,24 +25,49 @@ export default async function handler(
     }
 
     // Extract payment information from headers (set by x402 middleware)
-    const xPaymentResponse = req.headers['x-payment-response'] as string;
+    // x402-next sets payment info in these headers
     let buyerAddress: string | undefined;
     let transactionHash: string | undefined;
 
-    if (xPaymentResponse) {
+    // Try various header formats that x402 middleware might use
+    const xPaymentResponse = req.headers['x-payment-response'] as string;
+    const xPaymentFrom = req.headers['x-payment-from'] as string;
+    const xPaymentTx = req.headers['x-payment-tx'] as string;
+    const xPaymentPayer = req.headers['x-payment-payer'] as string;
+
+    console.log('Payment headers:', {
+      'x-payment-response': xPaymentResponse,
+      'x-payment-from': xPaymentFrom,
+      'x-payment-tx': xPaymentTx,
+      'x-payment-payer': xPaymentPayer,
+      'all-headers': req.headers
+    });
+
+    // First try the direct headers
+    if (xPaymentFrom) {
+      buyerAddress = xPaymentFrom;
+    } else if (xPaymentPayer) {
+      buyerAddress = xPaymentPayer;
+    }
+
+    if (xPaymentTx) {
+      transactionHash = xPaymentTx;
+    }
+
+    // If not found, try parsing x-payment-response
+    if (!buyerAddress && xPaymentResponse) {
       try {
-        // The x-payment-response header contains payment details
-        // It's typically a base64 encoded JSON string
+        // Try parsing as base64 encoded JSON
         const paymentData = JSON.parse(Buffer.from(xPaymentResponse, 'base64').toString());
         buyerAddress = paymentData.payer || paymentData.from || paymentData.buyer || paymentData.buyerAddress;
-        transactionHash = paymentData.transaction || paymentData.transactionHash || paymentData.txHash || paymentData.hash;
+        transactionHash = transactionHash || paymentData.transaction || paymentData.transactionHash || paymentData.txHash || paymentData.hash;
       } catch (e) {
-        console.error('Error parsing payment response:', e);
+        console.error('Error parsing payment response as base64:', e);
         // Try parsing as plain JSON
         try {
           const paymentData = JSON.parse(xPaymentResponse);
           buyerAddress = paymentData.payer || paymentData.from || paymentData.buyer || paymentData.buyerAddress;
-          transactionHash = paymentData.transaction || paymentData.transactionHash || paymentData.txHash || paymentData.hash;
+          transactionHash = transactionHash || paymentData.transaction || paymentData.transactionHash || paymentData.txHash || paymentData.hash;
         } catch (e2) {
           console.error('Error parsing payment response as JSON:', e2);
         }
@@ -51,20 +76,35 @@ export default async function handler(
 
     // Track the purchase if we have buyer information
     if (buyerAddress) {
-      const purchase: Purchase = {
-        itemId: item.id,
-        buyerAddress: buyerAddress,
-        transactionHash: transactionHash,
-        amount: item.price,
-        purchasedAt: new Date().toISOString(),
-      };
+      console.log('Recording purchase:', { buyerAddress, itemId: item.id, transactionHash });
 
-      try {
-        await db.collection<Purchase>(COLLECTIONS.PURCHASES).insertOne(purchase);
-      } catch (e) {
-        console.error('Error tracking purchase:', e);
-        // Don't fail the download if purchase tracking fails
+      // Check if this purchase already exists (to avoid duplicates)
+      const existingPurchase = await db.collection<Purchase>(COLLECTIONS.PURCHASES).findOne({
+        itemId: item.id,
+        buyerAddress: { $regex: new RegExp(`^${buyerAddress}$`, 'i') }
+      });
+
+      if (!existingPurchase) {
+        const purchase: Purchase = {
+          itemId: item.id,
+          buyerAddress: buyerAddress,
+          transactionHash: transactionHash,
+          amount: item.price,
+          purchasedAt: new Date().toISOString(),
+        };
+
+        try {
+          await db.collection<Purchase>(COLLECTIONS.PURCHASES).insertOne(purchase);
+          console.log('Purchase recorded successfully');
+        } catch (e) {
+          console.error('Error tracking purchase:', e);
+          // Don't fail the download if purchase tracking fails
+        }
+      } else {
+        console.log('Purchase already exists, skipping duplicate');
       }
+    } else {
+      console.warn('No buyer address found in payment headers - purchase will not be tracked');
     }
 
     // Increment download counter

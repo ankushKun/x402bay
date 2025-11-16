@@ -122,7 +122,25 @@ async function dynamicPaymentMiddleware(request: NextRequest): Promise<NextRespo
     }
   );
 
-  return middleware(request);
+  const response = await middleware(request);
+
+  // If payment was successful, extract payer info and add to request headers for downstream API
+  // Check if the response is continuing (payment verified)
+  if (response && response.headers) {
+    // Log response headers to see what's available
+    console.log('Payment middleware response headers:', Object.fromEntries(response.headers.entries()));
+
+    // Try to get payment info from x402 response
+    const xPaymentResponse = response.headers.get('x-payment-response');
+    const xPaymentFrom = response.headers.get('x-payment-from');
+    const xPaymentTx = response.headers.get('x-payment-tx');
+
+    if (xPaymentResponse || xPaymentFrom || xPaymentTx) {
+      console.log('Payment detected, forwarding headers to download API');
+    }
+  }
+
+  return response;
 }
 
 export default dynamicPaymentMiddleware;

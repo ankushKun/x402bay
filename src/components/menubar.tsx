@@ -1,4 +1,4 @@
-import { useUSDCBalance } from "@/lib/use-usdc-balance";
+import { useUSDCBalance } from "@/hooks/use-usdc-balance";
 import { baseSepolia } from "viem/chains";
 import { useAccount } from 'wagmi';
 

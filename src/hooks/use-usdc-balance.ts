@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAccount, useChainId } from 'wagmi';
-import { getBalance } from './utils';
+import { getBalance } from '@/lib/utils';
 import { Chain } from 'viem';
 import type { Address } from 'viem';
-import CONSTANTS from './constants';
+import CONSTANTS from '@/lib/constants';
 const { TOKENS } = CONSTANTS;
 
 export function useUSDCBalance({ targetAddress, chain }: { targetAddress?: string, chain?: Chain } = {}) {
@@ -35,10 +35,18 @@ export function useUSDCBalance({ targetAddress, chain }: { targetAddress?: strin
       } finally {
         setIsLoading(false);
       }
-
-
     }
+
+    // Fetch balance immediately
     fetchBalance();
+
+    // Set up interval to fetch balance every 5 seconds
+    const intervalId = setInterval(() => {
+      fetchBalance();
+    }, 5000);
+
+    // Clean up interval on unmount or when dependencies change
+    return () => clearInterval(intervalId);
   }, [address, chainId, chain]);
 
   return { balance, isLoading };
