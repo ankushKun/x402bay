@@ -109,6 +109,7 @@ export default function ListingPreview({ listing, showEdit }: { listing: FileIte
 
     return (
         <div
+            suppressHydrationWarning
             className="bg-white/5 border border-white/10 mb-3 hover:border-white/30 transition-colors"
         >
             {/* Header bar - black and white */}

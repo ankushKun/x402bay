@@ -153,7 +153,7 @@ export default function Home({ items: initialItems }: HomeProps) {
 
           {/* Categories */}
           <div className="w-full mt-6">
-            <div className="font-medium text-left w-full pl-0.5 text-xs pb-2 text-white/90 uppercase">Categories</div>
+            {categories.length > 0 && <div className="font-medium text-left w-full pl-0.5 text-xs pb-2 text-white/90 uppercase">Categories</div>}
             <div className="flex flex-wrap gap-2">
               {categories.map((category) => (
                 <Badge
@@ -212,9 +212,7 @@ export default function Home({ items: initialItems }: HomeProps) {
             ) : (
               <div className="mt-4">
                 {items.map((item) => (
-                  <Link key={item.id} href={`/listing/${item.id}`}>
-                    <ListingPreview listing={item} />
-                  </Link>
+                  <ListingPreview listing={item} />
                 ))}
               </div>
             )}

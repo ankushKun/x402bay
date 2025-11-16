@@ -1,10 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs/promises';
-import path from 'path';
-import { getDb } from '@/lib/mongodb';
+import { getDb, getDigitalFilesBucket, downloadFromGridFS, fileExistsInGridFS } from '@/lib/mongodb';
 import { FileItem, Purchase, COLLECTIONS } from '@/lib/models';
-
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 
 export default async function handler(
   req: NextApiRequest,
@@ -77,18 +73,17 @@ export default async function handler(
       { $inc: { downloadCount: 1 } }
     );
 
-    // Serve the file directly
-    const filePath = path.join(UPLOADS_DIR, item.filename);
+    // Get the file from GridFS
+    const digitalFilesBucket = await getDigitalFilesBucket();
 
     // Check if file exists
-    try {
-      await fs.access(filePath);
-    } catch {
-      return res.status(404).json({ error: 'File not found on disk' });
+    const fileExists = await fileExistsInGridFS(digitalFilesBucket, item.filename);
+    if (!fileExists) {
+      return res.status(404).json({ error: 'File not found in storage' });
     }
 
-    // Read the file
-    const fileBuffer = await fs.readFile(filePath);
+    // Download the file from GridFS
+    const fileBuffer = await downloadFromGridFS(digitalFilesBucket, item.filename);
 
     // Set response headers
     res.setHeader('Content-Type', 'application/octet-stream');

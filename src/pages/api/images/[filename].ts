@@ -1,8 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import fs from 'fs/promises';
 import path from 'path';
-
-const ITEM_IMAGES_DIR = path.join(process.cwd(), 'uploads', 'item-images');
+import { getItemImagesBucket, downloadFromGridFS, fileExistsInGridFS } from '@/lib/mongodb';
 
 export default async function handler(
   req: NextApiRequest,
@@ -24,17 +22,17 @@ export default async function handler(
       return res.status(400).json({ error: 'Invalid filename' });
     }
 
-    const imagePath = path.join(ITEM_IMAGES_DIR, filename);
+    // Get the image from GridFS
+    const itemImagesBucket = await getItemImagesBucket();
 
     // Check if file exists
-    try {
-      await fs.access(imagePath);
-    } catch {
+    const fileExists = await fileExistsInGridFS(itemImagesBucket, filename);
+    if (!fileExists) {
       return res.status(404).json({ error: 'Image not found' });
     }
 
-    // Read the file
-    const imageBuffer = await fs.readFile(imagePath);
+    // Download the image from GridFS
+    const imageBuffer = await downloadFromGridFS(itemImagesBucket, filename);
 
     // Determine content type based on file extension
     const ext = path.extname(filename).toLowerCase();

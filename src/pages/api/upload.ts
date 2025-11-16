@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { IncomingForm } from 'formidable';
 import fs from 'fs/promises';
 import path from 'path';
-import { getDb } from '@/lib/mongodb';
+import { getDb, getDigitalFilesBucket, getItemImagesBucket, uploadToGridFS } from '@/lib/mongodb';
 import { FileItem, ItemImage, TokenInfo, COLLECTIONS } from '@/lib/models';
 import { verifySession, verifyUploaderOwnership } from '@/lib/auth';
 import CONSTANTS from '@/lib/constants';
@@ -14,11 +14,9 @@ export const config = {
 };
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
-const ITEM_IMAGES_DIR = path.join(process.cwd(), 'uploads', 'item-images');
 
 async function ensureDirectories() {
   await fs.mkdir(UPLOADS_DIR, { recursive: true });
-  await fs.mkdir(ITEM_IMAGES_DIR, { recursive: true });
 }
 
 export default async function handler(
@@ -105,13 +103,25 @@ export default async function handler(
     const fileId = Date.now().toString(36) + Math.random().toString(36).substring(2);
     const fileExt = path.extname(digitalFile.originalFilename || '');
     const filename = `${fileId}${fileExt}`;
-    const newPath = path.join(UPLOADS_DIR, filename);
 
-    // Move digital file to final location
-    await fs.rename(digitalFile.filepath, newPath);
+    // Read the digital file from temp location
+    const fileBuffer = await fs.readFile(digitalFile.filepath);
+
+    // Upload digital file to GridFS
+    const digitalFilesBucket = await getDigitalFilesBucket();
+    await uploadToGridFS(digitalFilesBucket, filename, fileBuffer, {
+      originalName: digitalFile.originalFilename,
+      uploadedBy: uploaderAddress,
+      uploadedAt: new Date().toISOString(),
+    });
+
+    // Clean up temp file
+    await fs.unlink(digitalFile.filepath).catch(() => { });
 
     // Process item images
     const itemImages: ItemImage[] = [];
+    const itemImagesBucket = await getItemImagesBucket();
+
     for (let i = 0; i < itemImagesCount; i++) {
       const imageFile = Array.isArray(files[`itemImage${i}`])
         ? files[`itemImage${i}`][0]
@@ -120,10 +130,20 @@ export default async function handler(
       if (imageFile) {
         const imageExt = path.extname(imageFile.originalFilename || '');
         const imageFilename = `${fileId}_image${i}${imageExt}`;
-        const imagePath = path.join(ITEM_IMAGES_DIR, imageFilename);
 
-        // Move image to final location
-        await fs.rename(imageFile.filepath, imagePath);
+        // Read the image file from temp location
+        const imageBuffer = await fs.readFile(imageFile.filepath);
+
+        // Upload image to GridFS
+        await uploadToGridFS(itemImagesBucket, imageFilename, imageBuffer, {
+          originalName: imageFile.originalFilename,
+          uploadedBy: uploaderAddress,
+          uploadedAt: new Date().toISOString(),
+          isThumbnail: i === 0,
+        });
+
+        // Clean up temp file
+        await fs.unlink(imageFile.filepath).catch(() => { });
 
         itemImages.push({
           filename: imageFilename,
